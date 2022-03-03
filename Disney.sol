@@ -21,6 +21,7 @@ contract Disney{
     struct cliente{
         uint tokensComprados;
         string [] atraccionesDisfrutadas;
+        string [] comidasCompradas;
     }
 
     //Mapping para el registro de clientes
@@ -37,7 +38,7 @@ contract Disney{
     //Funcion para comprar tockens
     function compraTokens (uint _numTokens)public payable {
         //Establecer el precio de los tockens
-        uint coste = precioTokens (_numTokens);
+        uint coste = precioTokens(_numTokens);
 
         require (msg.value >= coste , "Compra menos tokens o paga con mas ethers.");
 
@@ -45,7 +46,7 @@ contract Disney{
          uint returnValue =  msg.value - coste ;
 
          //Disney retorna devuelta
-         owner.transfer (returnValue);
+         owner.transfer(returnValue);
 
          //Revisando tokens en el contrato
          uint balance = balanceOf();
@@ -82,6 +83,7 @@ contract Disney{
 
     //--------------------------------- Gestion de Disney ---------------------------------
 
+    //Gestión atracciones
     //Eventos
     event disfrutaAtraccion(string);
     event nuevaAtraccion(string , uint);
@@ -141,7 +143,7 @@ contract Disney{
         "Necesitas mas tokens para subirte a la atraccion");
 
         //El cliente paga la atraccion al contrato
-        token.transferenciaDisney (msg.sender , address(this), tokenAtraccion);
+        token.transferenciaDisney(msg.sender , address(this), tokenAtraccion);
 
         //Almacenar las atracciones del cliente usadas
         historialAtracciones[msg.sender].push(_nombreAtraccion);
@@ -167,6 +169,74 @@ contract Disney{
         token.transferenciaDisney(msg.sender , address(this) , _numTokens);
 
         //Devolucion de los etheres al cliente
-        owner.transfer(precioTokens(_numTokens));
+        payable(msg.sender).transfer(precioTokens(_numTokens));
+    }
+
+    //Gestión comidas
+    struct comida{
+        string nombre;
+        uint precio;
+        bool estadoComida;
+    }
+
+    //Mapping para relacionar el nombre de una comida con su estructura de datos
+    mapping(string => comida) public mappingComidas;
+
+    //arreglo de comidas creadas
+    string[] comidas;
+
+    //eventos comidas
+    event comidaCreadaEvent(string);
+    event estadoComidaEvent(string);
+    event comidaCompradaEvent(string);
+
+    //Funcion para dar de alta una comida
+    function crearComida(string memory _nombre, uint _precio) public onlyAdmin(msg.sender) {
+        mappingComidas[_nombre] = comida(_nombre, _precio, true);
+        comidas.push(_nombre);
+
+        string memory mensaje = string(abi.encodePacked("Se ha creado la comida ", _nombre));
+
+        emit comidaCreadaEvent(mensaje);
+    }
+
+    //Funcion para de cambiar el estado de una comida
+    function estadoComida(string memory _nombre) public onlyAdmin(msg.sender) {
+        mappingComidas[_nombre].estadoComida = !mappingComidas[_nombre].estadoComida;
+
+        string memory mensaje = string(abi.encodePacked("Estado de la comida ", _nombre, " actualizado a ", mappingComidas[_nombre].estadoComida));
+
+        emit estadoComidaEvent(mensaje);
+    }
+
+    //Funcion para mostrar comidas disponibles
+    function verComidas() public view returns(string[] memory){
+        string[] memory comidasActivas = new string[](comidas.length);
+        uint contador = 0;
+
+        for(uint i = 0; i < comidas.length; i++){
+            if(mappingComidas[comidas[i]].estadoComida == true){
+                comidasActivas[contador] = comidas[i];
+                contador++;
+            }
+        }
+
+        return comidasActivas;
+    }
+
+    //Para comprar comida
+    function comprarComida(string memory _nombre) public payable {
+        require(clientes[msg.sender].tokensComprados >= mappingComidas[_nombre].precio, "No tienes fondos suficientes para comprar la comida.");
+        require(mappingComidas[_nombre].estadoComida == true, "La comida que desea comprar no esta disponible.");
+
+        token.transferenciaDisney(msg.sender, address(this), mappingComidas[_nombre].precio);
+        token.transfer(msg.sender, msg.value - mappingComidas[_nombre].precio);
+
+        clientes[msg.sender].comidasCompradas.push(_nombre);
+        emit comidaCompradaEvent(string(abi.encodePacked("La comida ", _nombre, " ha sido comprada")));
+    }
+
+    function historialComida() public view returns (string [] memory){
+        return clientes[msg.sender].comidasCompradas;
     }
 }
